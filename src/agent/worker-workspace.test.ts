@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   attachWorkerMetadata,
   buildCodexLaunchPlan,
   candidateFingerprints,
   captureGitCandidate,
+  fsyncGitStore,
   loadFrozenCandidateRegistration,
   provisionWorkerWorkspace,
   registerFrozenCandidate,
@@ -56,6 +57,38 @@ afterEach(async () => {
 });
 
 describe('Codex worker workspace substrate', () => {
+  it('retries durability sync when Git atomically replaces a listed pack file', async () => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), 'agent-os-git-sync-test-'));
+    temporaryDirectories.push(root);
+    const packDirectory = path.join(root, 'objects', 'pack');
+    const refDirectory = path.join(root, 'refs', 'candidates', 'fixture');
+    await fs.mkdir(packDirectory, { recursive: true });
+    await fs.mkdir(refDirectory, { recursive: true });
+    const oldPack = path.join(packDirectory, 'pack-old.pack');
+    const replacementPack = path.join(packDirectory, 'pack-replacement.pack');
+    await fs.writeFile(oldPack, 'pack-data');
+    await fs.writeFile(path.join(refDirectory, 'candidate'), 'a'.repeat(40));
+
+    const openFile = fs.open.bind(fs);
+    let replaced = false;
+    const openSpy = vi.spyOn(fs, 'open').mockImplementation(async (...args) => {
+      if (!replaced && String(args[0]) === oldPack) {
+        replaced = true;
+        await fs.rename(oldPack, replacementPack);
+      }
+      return openFile(...args);
+    });
+    try {
+      await expect(
+        fsyncGitStore(root, 'refs/candidates/fixture/candidate'),
+      ).resolves.toBeUndefined();
+    } finally {
+      openSpy.mockRestore();
+    }
+    expect(replaced).toBe(true);
+    await expect(fs.readFile(replacementPack, 'utf8')).resolves.toBe('pack-data');
+  });
+
   it('creates a real branch with writable metadata outside the protected .git path', async () => {
     const current = await fixture();
     const workspace = await provisionWorkerWorkspace({

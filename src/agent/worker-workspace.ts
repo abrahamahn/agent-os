@@ -485,16 +485,41 @@ export async function verifyFrozenCandidate(
   }
 }
 
-async function fsyncGitStore(storeGitDirectory: string, ref: string): Promise<void> {
-  const packDirectory = path.join(storeGitDirectory, 'objects', 'pack');
-  for (const entry of await fs.readdir(packDirectory).catch(() => [])) {
-    const handle = await fs.open(path.join(packDirectory, entry), 'r');
-    try {
-      await handle.sync();
-    } finally {
-      await handle.close();
+async function syncStableDirectoryFiles(directory: string): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const entries = (await fs.readdir(directory).catch(() => [])).sort((left, right) =>
+      left.localeCompare(right),
+    );
+    let changedDuringSync = false;
+    for (const entry of entries) {
+      let handle;
+      try {
+        handle = await fs.open(path.join(directory, entry), 'r');
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          changedDuringSync = true;
+          break;
+        }
+        throw error;
+      }
+      try {
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
     }
+    if (changedDuringSync) continue;
+    const after = (await fs.readdir(directory).catch(() => [])).sort((left, right) =>
+      left.localeCompare(right),
+    );
+    if (JSON.stringify(after) === JSON.stringify(entries)) return;
   }
+  throw new Error(`Git object directory did not stabilize during durability sync: ${directory}`);
+}
+
+export async function fsyncGitStore(storeGitDirectory: string, ref: string): Promise<void> {
+  const packDirectory = path.join(storeGitDirectory, 'objects', 'pack');
+  await syncStableDirectoryFiles(packDirectory);
   for (const directoryPath of [
     packDirectory,
     path.join(storeGitDirectory, 'objects'),
@@ -594,6 +619,10 @@ export async function captureGitCandidate(
     await git([
       '-c',
       'fetch.unpackLimit=0',
+      '-c',
+      'gc.auto=0',
+      '-c',
+      'maintenance.auto=false',
       '--git-dir',
       storeGitDirectory,
       'fetch',
