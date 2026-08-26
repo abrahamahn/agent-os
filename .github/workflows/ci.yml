@@ -23,7 +23,5 @@ jobs:
         with:
           node-version: 24
       - run: corepack enable
-      - name: Install validation sandbox
-        run: sudo apt-get update && sudo apt-get install --yes bubblewrap
       - run: pnpm install --frozen-lockfile
       - run: pnpm check

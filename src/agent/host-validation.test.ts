@@ -1,5 +1,5 @@
 // src/agent/host-validation.test.ts
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -31,6 +31,10 @@ import type { WorkerEnvironmentCapabilities } from './worker-workspace';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
+const bubblewrapIntegrationAvailable =
+  spawnSync('bwrap', ['--unshare-pid', '--die-with-parent', '--ro-bind', '/', '/', '--', 'true'], {
+    stdio: 'ignore',
+  }).status === 0;
 const testBootstrapToolIdentity = {
   executable: '/controller-tools/pnpm',
   version: '10.26.2',
@@ -462,135 +466,140 @@ describe('controller-authorized host validation', () => {
     expect(() => productValidationScratchPolicy(current.worktree)).toThrow(/unsafe/iu);
   });
 
-  it('runs an attested product launcher with writable tool cache and immutable authority', async () => {
-    const current = await fixture();
-    const packageRoots = ['main/apps/portal', 'main/server/comms'];
-    const deniedTurboRoots = ['examples/not-workspace', 'main/apps/excluded'];
-    await fs.writeFile(
-      path.join(current.worktree, 'pnpm-workspace.yaml'),
-      "packages:\n  - 'main/apps/*'\n  - 'main/server/*'\n  - '!main/apps/excluded'\n",
-    );
-    await fs.writeFile(
-      path.join(current.worktree, 'turbo.json'),
-      JSON.stringify({ tasks: { lint: { cache: true } } }),
-    );
-    for (const packageRoot of packageRoots) {
-      const directory = path.join(current.worktree, packageRoot);
-      await fs.mkdir(directory, { recursive: true });
+  it.skipIf(!bubblewrapIntegrationAvailable)(
+    'runs an attested product launcher with writable tool cache and immutable authority',
+    async () => {
+      const current = await fixture();
+      const packageRoots = ['main/apps/portal', 'main/server/comms'];
+      const deniedTurboRoots = ['examples/not-workspace', 'main/apps/excluded'];
       await fs.writeFile(
-        path.join(directory, 'package.json'),
+        path.join(current.worktree, 'pnpm-workspace.yaml'),
+        "packages:\n  - 'main/apps/*'\n  - 'main/server/*'\n  - '!main/apps/excluded'\n",
+      );
+      await fs.writeFile(
+        path.join(current.worktree, 'turbo.json'),
+        JSON.stringify({ tasks: { lint: { cache: true } } }),
+      );
+      for (const packageRoot of packageRoots) {
+        const directory = path.join(current.worktree, packageRoot);
+        await fs.mkdir(directory, { recursive: true });
+        await fs.writeFile(
+          path.join(directory, 'package.json'),
+          JSON.stringify({
+            name: `@fixture/${path.basename(directory)}`,
+            scripts:
+              packageRoot === 'main/apps/portal'
+                ? {
+                    lint: 'node -e ""',
+                    'lint:configured':
+                      'eslint . --cache --cache-location ../../node_modules/.cache/eslint/.eslintcache-fixture',
+                  }
+                : { lint: 'node -e ""' },
+          }),
+        );
+        await fs.mkdir(path.join(directory, 'src'));
+        if (packageRoot === 'main/apps/portal') {
+          await fs.writeFile(
+            path.join(directory, 'src', 'valid.js'),
+            'export const valid = true;\n',
+          );
+        }
+      }
+      for (const packageRoot of deniedTurboRoots) {
+        const directory = path.join(current.worktree, packageRoot);
+        await fs.mkdir(path.join(directory, '.turbo'), { recursive: true });
+        await fs.writeFile(
+          path.join(directory, 'package.json'),
+          JSON.stringify({ name: `@fixture/${path.basename(directory)}` }),
+        );
+      }
+      await fs.mkdir(path.join(current.worktree, 'node_modules', '.pnpm'), {
+        recursive: true,
+      });
+      await fs.mkdir(path.join(current.worktree, 'node_modules', '.cache'), {
+        recursive: true,
+      });
+      await fs.mkdir(path.join(current.worktree, 'node_modules', 'example'));
+      await fs.writeFile(
+        path.join(current.worktree, 'node_modules', 'example', 'index.js'),
+        'module',
+      );
+      await fs.mkdir(path.join(current.worktree, '.turbo'), { recursive: true });
+      for (const packageRoot of packageRoots) {
+        await fs.mkdir(path.join(current.worktree, packageRoot, '.turbo'), {
+          recursive: true,
+        });
+      }
+      for (const relativePath of productValidationScratchPolicy(current.worktree).mounts) {
+        await fs.mkdir(path.join(current.worktree, ...relativePath.split('/')), {
+          recursive: true,
+        });
+      }
+      expect(discoverTurboScratchRoots(current.worktree)).toEqual(['', ...packageRoots]);
+      const turboPolicy = productTurboScratchPolicy(current.worktree);
+      expect(turboPolicy.roots).toEqual(['', ...packageRoots]);
+      expect(
+        turboPolicy.roots.every((root) => !path.isAbsolute(root) && !root.includes('..')),
+      ).toBe(true);
+      const scratchPolicy = productValidationScratchPolicy(current.worktree);
+      expect(scratchPolicy.mounts).toEqual(
+        expect.arrayContaining([
+          'node_modules/.cache',
+          'main/node_modules/.cache/eslint',
+          'main/apps/portal/node_modules/.cache',
+          'main/apps/portal/node_modules/.vite-temp',
+          'main/apps/portal/.turbo',
+          'main/server/comms/.turbo',
+        ]),
+      );
+      expect(scratchPolicy.mounts).not.toContain('main/apps/portal/node_modules');
+      expect(scratchPolicy.mounts).not.toContain('node_modules/.pnpm');
+      const originalSha = current.sha;
+      const originalTree = (
+        await execFileAsync('git', ['rev-parse', `${current.sha}^{tree}`], {
+          cwd: current.worktree,
+          encoding: 'utf8',
+        })
+      ).stdout.trim();
+      const turboCli = await fs.realpath(path.resolve('node_modules/turbo/bin/turbo'));
+      const vitestCli = await fs.realpath(path.resolve('node_modules/vitest/vitest.mjs'));
+      const tscCli = await fs.realpath(path.resolve('node_modules/typescript/bin/tsc'));
+      const eslintCli = await fs.realpath(path.resolve('node_modules/eslint/bin/eslint.js'));
+      const pnpmExecutable = (
+        await execFileAsync('which', ['pnpm'], { encoding: 'utf8' })
+      ).stdout.trim();
+      await fs.writeFile(
+        path.join(current.worktree, 'main/apps/portal/vitest.config.mjs'),
+        'export default { test: { globals: true, include: ["test/**/*.test.js"] } };\n',
+      );
+      await fs.mkdir(path.join(current.worktree, 'main/apps/portal/test'), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(current.worktree, 'main/apps/portal/test/scratch.test.js'),
+        'it("loads through Vitest", () => {});\n',
+      );
+      await fs.writeFile(
+        path.join(current.worktree, 'main/apps/portal/tsconfig.scratch.json'),
         JSON.stringify({
-          name: `@fixture/${path.basename(directory)}`,
-          scripts:
-            packageRoot === 'main/apps/portal'
-              ? {
-                  lint: 'node -e ""',
-                  'lint:configured':
-                    'eslint . --cache --cache-location ../../node_modules/.cache/eslint/.eslintcache-fixture',
-                }
-              : { lint: 'node -e ""' },
+          compilerOptions: {
+            allowJs: true,
+            checkJs: false,
+            noEmit: true,
+            incremental: true,
+            tsBuildInfoFile: 'node_modules/.cache/typescript/scratch.tsbuildinfo',
+          },
+          include: ['src/**/*.js'],
         }),
       );
-      await fs.mkdir(path.join(directory, 'src'));
-      if (packageRoot === 'main/apps/portal') {
-        await fs.writeFile(path.join(directory, 'src', 'valid.js'), 'export const valid = true;\n');
-      }
-    }
-    for (const packageRoot of deniedTurboRoots) {
-      const directory = path.join(current.worktree, packageRoot);
-      await fs.mkdir(path.join(directory, '.turbo'), { recursive: true });
       await fs.writeFile(
-        path.join(directory, 'package.json'),
-        JSON.stringify({ name: `@fixture/${path.basename(directory)}` }),
+        path.join(current.worktree, 'eslint.config.mjs'),
+        'export default [{ files: ["**/*.js"], rules: {} }];\n',
       );
-    }
-    await fs.mkdir(path.join(current.worktree, 'node_modules', '.pnpm'), {
-      recursive: true,
-    });
-    await fs.mkdir(path.join(current.worktree, 'node_modules', '.cache'), {
-      recursive: true,
-    });
-    await fs.mkdir(path.join(current.worktree, 'node_modules', 'example'));
-    await fs.writeFile(
-      path.join(current.worktree, 'node_modules', 'example', 'index.js'),
-      'module',
-    );
-    await fs.mkdir(path.join(current.worktree, '.turbo'), { recursive: true });
-    for (const packageRoot of packageRoots) {
-      await fs.mkdir(path.join(current.worktree, packageRoot, '.turbo'), {
-        recursive: true,
-      });
-    }
-    for (const relativePath of productValidationScratchPolicy(current.worktree).mounts) {
-      await fs.mkdir(path.join(current.worktree, ...relativePath.split('/')), {
-        recursive: true,
-      });
-    }
-    expect(discoverTurboScratchRoots(current.worktree)).toEqual(['', ...packageRoots]);
-    const turboPolicy = productTurboScratchPolicy(current.worktree);
-    expect(turboPolicy.roots).toEqual(['', ...packageRoots]);
-    expect(turboPolicy.roots.every((root) => !path.isAbsolute(root) && !root.includes('..'))).toBe(
-      true,
-    );
-    const scratchPolicy = productValidationScratchPolicy(current.worktree);
-    expect(scratchPolicy.mounts).toEqual(
-      expect.arrayContaining([
-        'node_modules/.cache',
-        'main/node_modules/.cache/eslint',
-        'main/apps/portal/node_modules/.cache',
-        'main/apps/portal/node_modules/.vite-temp',
-        'main/apps/portal/.turbo',
-        'main/server/comms/.turbo',
-      ]),
-    );
-    expect(scratchPolicy.mounts).not.toContain('main/apps/portal/node_modules');
-    expect(scratchPolicy.mounts).not.toContain('node_modules/.pnpm');
-    const originalSha = current.sha;
-    const originalTree = (
-      await execFileAsync('git', ['rev-parse', `${current.sha}^{tree}`], {
-        cwd: current.worktree,
-        encoding: 'utf8',
-      })
-    ).stdout.trim();
-    const turboCli = await fs.realpath(path.resolve('node_modules/turbo/bin/turbo'));
-    const vitestCli = await fs.realpath(path.resolve('node_modules/vitest/vitest.mjs'));
-    const tscCli = await fs.realpath(path.resolve('node_modules/typescript/bin/tsc'));
-    const eslintCli = await fs.realpath(path.resolve('node_modules/eslint/bin/eslint.js'));
-    const pnpmExecutable = (
-      await execFileAsync('which', ['pnpm'], { encoding: 'utf8' })
-    ).stdout.trim();
-    await fs.writeFile(
-      path.join(current.worktree, 'main/apps/portal/vitest.config.mjs'),
-      'export default { test: { globals: true, include: ["test/**/*.test.js"] } };\n',
-    );
-    await fs.mkdir(path.join(current.worktree, 'main/apps/portal/test'), {
-      recursive: true,
-    });
-    await fs.writeFile(
-      path.join(current.worktree, 'main/apps/portal/test/scratch.test.js'),
-      'it("loads through Vitest", () => {});\n',
-    );
-    await fs.writeFile(
-      path.join(current.worktree, 'main/apps/portal/tsconfig.scratch.json'),
-      JSON.stringify({
-        compilerOptions: {
-          allowJs: true,
-          checkJs: false,
-          noEmit: true,
-          incremental: true,
-          tsBuildInfoFile: 'node_modules/.cache/typescript/scratch.tsbuildinfo',
-        },
-        include: ['src/**/*.js'],
-      }),
-    );
-    await fs.writeFile(
-      path.join(current.worktree, 'eslint.config.mjs'),
-      'export default [{ files: ["**/*.js"], rules: {} }];\n',
-    );
-    const productProbe = [
-      process.execPath,
-      '-e',
-      `const fs=require('node:fs');const cp=require('node:child_process');
+      const productProbe = [
+        process.execPath,
+        '-e',
+        `const fs=require('node:fs');const cp=require('node:child_process');
 fs.writeFileSync('node_modules/.cache/turbo','cache-ok');
 fs.writeFileSync('main/apps/portal/node_modules/.vite-temp/vite-temp','vite-ok');
 fs.mkdirSync('main/apps/portal/node_modules/.cache/typescript',{recursive:true});
@@ -608,48 +617,49 @@ for(const file of ['main/apps/portal/src/write-denied','main/apps/portal/package
 try{cp.execFileSync('git',['update-ref','refs/heads/agent-os-sandbox-write-denied','HEAD'],{stdio:'ignore'})}catch{denied++}
 try{cp.execFileSync('git',['add','package.json'],{stdio:'ignore'})}catch{denied++}
 if(denied!==12||fs.readFileSync('node_modules/.cache/turbo','utf8')!=='cache-ok'||fs.readFileSync('main/apps/portal/node_modules/.vite-temp/vite-temp','utf8')!=='vite-ok'||fs.readFileSync('main/apps/portal/node_modules/.cache/typescript/manual','utf8')!=='ts-ok'||fs.readFileSync('main/node_modules/.cache/eslint/manual','utf8')!=='eslint-ok'||fs.readFileSync('main/apps/portal/.turbo/log','utf8')!=='portal-log'||fs.readFileSync('main/server/comms/.turbo/log','utf8')!=='comms-log')process.exit(1);process.stdout.write('sandbox-product-started\\n');`,
-    ] as const;
-    const command = sandboxedHostCommand(
-      request(current, 'shared-runtime-health'),
-      TEST_VALIDATION_POLICIES['shared-runtime-health'],
-      productProbe,
-    );
-    const executable = command[0];
-    if (executable === undefined) throw new Error('sandbox command is empty');
-    const result = await execFileAsync(executable, command.slice(1), {
-      cwd: current.worktree,
-      env: {
-        ...productExecutionEnvironment(
-          {
-            PATH: `${path.dirname(process.execPath)}:${path.dirname(pnpmExecutable)}:/usr/bin:/bin`,
-          },
-          current.environment.gitControlDirectory,
-        ),
-        AGENT_OS_PRODUCT_ATTESTATION_TOKEN: 'sandbox-test-token',
-      },
-      encoding: 'utf8',
-    });
-    expect(result.stderr).toBe('');
-    await expect(
-      fs.lstat(path.join(current.worktree, 'main/apps/portal/.turbo/log')),
-    ).rejects.toMatchObject({ code: 'ENOENT' });
-    expect(
-      (
-        await execFileAsync('git', ['rev-parse', 'HEAD'], {
-          cwd: current.worktree,
-          encoding: 'utf8',
-        })
-      ).stdout.trim(),
-    ).toBe(originalSha);
-    expect(
-      (
-        await execFileAsync('git', ['rev-parse', `${originalSha}^{tree}`], {
-          cwd: current.worktree,
-          encoding: 'utf8',
-        })
-      ).stdout.trim(),
-    ).toBe(originalTree);
-  });
+      ] as const;
+      const command = sandboxedHostCommand(
+        request(current, 'shared-runtime-health'),
+        TEST_VALIDATION_POLICIES['shared-runtime-health'],
+        productProbe,
+      );
+      const executable = command[0];
+      if (executable === undefined) throw new Error('sandbox command is empty');
+      const result = await execFileAsync(executable, command.slice(1), {
+        cwd: current.worktree,
+        env: {
+          ...productExecutionEnvironment(
+            {
+              PATH: `${path.dirname(process.execPath)}:${path.dirname(pnpmExecutable)}:/usr/bin:/bin`,
+            },
+            current.environment.gitControlDirectory,
+          ),
+          AGENT_OS_PRODUCT_ATTESTATION_TOKEN: 'sandbox-test-token',
+        },
+        encoding: 'utf8',
+      });
+      expect(result.stderr).toBe('');
+      await expect(
+        fs.lstat(path.join(current.worktree, 'main/apps/portal/.turbo/log')),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+      expect(
+        (
+          await execFileAsync('git', ['rev-parse', 'HEAD'], {
+            cwd: current.worktree,
+            encoding: 'utf8',
+          })
+        ).stdout.trim(),
+      ).toBe(originalSha);
+      expect(
+        (
+          await execFileAsync('git', ['rev-parse', `${originalSha}^{tree}`], {
+            cwd: current.worktree,
+            encoding: 'utf8',
+          })
+        ).stdout.trim(),
+      ).toBe(originalTree);
+    },
+  );
 
   it('refuses to masquerade a Codex sandbox as the host runner', async () => {
     const current = await fixture();
