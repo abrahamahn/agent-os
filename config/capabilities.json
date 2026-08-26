@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "activePhase": "default",
+  "phases": {
+    "default": {
+      "workers": {
+        "A1": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["manager", "release"]
+        },
+        "A2": { "capabilities": ["resource:medium"] },
+        "A3": { "capabilities": ["resource:medium"] },
+        "A4": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["integrator"],
+          "ownership": ["."]
+        },
+        "A5": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["correctness-fixer"],
+          "ownership": ["."]
+        },
+        "A6": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["builder", "correctness-fixer"]
+        },
+        "A7": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["builder", "correctness-fixer"]
+        },
+        "A8": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["builder", "correctness-fixer"]
+        },
+        "A9": { "capabilities": ["resource:medium"] },
+        "A10": {
+          "capabilities": ["resource:medium"],
+          "priority": 50,
+          "lifecycleRoles": ["reviewer"],
+          "reviewRisks": ["LOW", "MEDIUM", "HIGH"]
+        },
+        "A11": {
+          "capabilities": ["resource:medium", "resource:heavy", "validation:broad"],
+          "priority": 100,
+          "lifecycleRoles": ["release"]
+        },
+        "A12": { "capabilities": ["resource:medium"] },
+        "A13": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["control-plane-recovery"]
+        },
+        "A14": { "capabilities": ["resource:medium"] },
+        "A15": { "capabilities": ["resource:medium"] },
+        "A16": {
+          "capabilities": ["resource:medium"],
+          "lifecycleRoles": ["orchestrator"]
+        }
+      }
+    }
+  }
+}

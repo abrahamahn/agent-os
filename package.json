@@ -1,0 +1,41 @@
+{
+  "name": "agent-os",
+  "version": "0.1.0",
+  "description": "Agent orchestration, execution, validation, and process-control tooling.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.13 <27"
+  },
+  "scripts": {
+    "agent-os": "node --import tsx src/agent/agent-os-cli.ts",
+    "agent-substrate": "node --import tsx src/agent/execution-substrate-cli.ts",
+    "agent-resource": "node --import tsx src/agent/resource-cli.ts",
+    "process-guardian": "node --import tsx src/process/cli.ts",
+    "quality-control": "node --import tsx src/control-plane/quality-control-cli.ts",
+    "validation-evidence": "node --import tsx src/validation/validation-evidence-cli.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm format:check && pnpm lint && pnpm type-check && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.0.9",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.0",
+    "tsx": "^4.21.0",
+    "turbo": "^2.10.12",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.53.1",
+    "vitest": "^4.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "packageManager": "pnpm@10.26.2"
+}

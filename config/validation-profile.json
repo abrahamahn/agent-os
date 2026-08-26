@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "environmentNames": [
+    "PATH",
+    "HOME",
+    "CI",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "XDG_CACHE_HOME",
+    "GIT_DIR",
+    "GIT_WORK_TREE"
+  ],
+  "bootstrap": {
+    "command": [],
+    "environment": {},
+    "dependencyFiles": [
+      "package.json",
+      "pnpm-lock.yaml",
+      "package-lock.json",
+      "yarn.lock",
+      "bun.lock",
+      "bun.lockb",
+      "Cargo.toml",
+      "Cargo.lock",
+      "go.mod",
+      "go.sum",
+      "pyproject.toml",
+      "uv.lock",
+      "poetry.lock",
+      "requirements.txt",
+      "Gemfile",
+      "Gemfile.lock",
+      "pom.xml",
+      "build.gradle",
+      "build.gradle.kts"
+    ]
+  },
+  "scratchPaths": [],
+  "services": {},
+  "checks": {
+    "repository-status": {
+      "resource": "medium",
+      "command": ["git", "status", "--short"]
+    }
+  }
+}
