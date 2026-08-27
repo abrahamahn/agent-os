@@ -75,81 +75,95 @@ function validUniqueArray(
 }
 
 function validPaths(value: unknown): value is readonly string[] {
-  return validUniqueArray(
-    value,
-    (candidate) =>
-      typeof candidate === 'string' &&
-      candidate.trim().length > 0 &&
-      !candidate.includes('..') &&
-      !candidate.startsWith('/'),
-  );
+  return validUniqueArray(value, (candidate) => {
+    if (typeof candidate !== 'string' || candidate.trim() !== candidate) return false;
+    if (candidate === '.') return true;
+    return (
+      candidate.length > 0 &&
+      !candidate.includes('\\') &&
+      !candidate.includes('\0') &&
+      !candidate.startsWith('/') &&
+      !/^[a-z]:/iu.test(candidate) &&
+      candidate.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+    );
+  });
 }
 
-function parseManifest(value: unknown): CapabilityManifest {
-  if (typeof value !== 'object' || value === null)
-    throw new Error('capability manifest must be an object');
-  const candidate = value as Record<string, unknown>;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function parseCapabilityManifest(value: unknown): CapabilityManifest {
+  if (!isRecord(value)) throw new Error('capability manifest must be an object');
+  const candidate = value;
   if (candidate['schemaVersion'] !== 1) throw new Error('unsupported capability manifest schema');
   const activePhase = candidate['activePhase'];
-  if (typeof activePhase !== 'string' || activePhase.trim() === '') {
+  if (
+    typeof activePhase !== 'string' ||
+    activePhase.length === 0 ||
+    activePhase.trim() !== activePhase
+  ) {
     throw new Error('capability manifest activePhase must not be empty');
   }
   const phases = candidate['phases'];
-  if (typeof phases !== 'object' || phases === null) {
+  if (!isRecord(phases)) {
     throw new Error('capability manifest phases must be an object');
   }
-  const phase = (phases as Record<string, unknown>)[activePhase];
-  if (typeof phase !== 'object' || phase === null) {
+  if (!Object.hasOwn(phases, activePhase)) {
     throw new Error(`capability manifest does not define active phase ${activePhase}`);
   }
-  const workers = (phase as Record<string, unknown>)['workers'];
-  if (typeof workers !== 'object' || workers === null) {
-    throw new Error(`capability manifest phase ${activePhase} has no worker map`);
+  for (const [phaseId, rawPhase] of Object.entries(phases)) {
+    if (phaseId.length === 0 || phaseId.trim() !== phaseId || !isRecord(rawPhase)) {
+      throw new Error(`invalid capability manifest phase ${phaseId || '(empty)'}`);
+    }
+    const workers = rawPhase['workers'];
+    if (!isRecord(workers)) {
+      throw new Error(`capability manifest phase ${phaseId} has no worker map`);
+    }
+    for (const [worker, rawPolicy] of Object.entries(workers)) {
+      if (worker.length === 0 || worker.trim() !== worker || !isRecord(rawPolicy)) {
+        throw new Error(`invalid capability policy for worker ${worker || '(empty)'}`);
+      }
+      const policy = rawPolicy;
+      if (!validUniqueArray(policy['capabilities'], isCapability)) {
+        throw new Error(`invalid capability policy for worker ${worker}`);
+      }
+      if (
+        policy['priority'] !== undefined &&
+        (!Number.isSafeInteger(policy['priority']) || Number(policy['priority']) < 0)
+      ) {
+        throw new Error(`invalid capability priority for worker ${worker}`);
+      }
+      if (
+        policy['lifecycleRoles'] !== undefined &&
+        !validUniqueArray(policy['lifecycleRoles'], isLifecycleRole)
+      ) {
+        throw new Error(`invalid lifecycle roles for worker ${worker}`);
+      }
+      if (
+        policy['reviewRisks'] !== undefined &&
+        !validUniqueArray(policy['reviewRisks'], isTaskRisk)
+      ) {
+        throw new Error(`invalid review risks for worker ${worker}`);
+      }
+      if (policy['ownership'] !== undefined && !validPaths(policy['ownership'])) {
+        throw new Error(`invalid lifecycle ownership for worker ${worker}`);
+      }
+      if (policy['hotspots'] !== undefined && !validPaths(policy['hotspots'])) {
+        throw new Error(`invalid lifecycle hotspots for worker ${worker}`);
+      }
+      if (Array.isArray(policy['reviewRisks']) && !Array.isArray(policy['lifecycleRoles'])) {
+        throw new Error(`review risks require lifecycle roles for worker ${worker}`);
+      }
+    }
   }
-  for (const [worker, rawPolicy] of Object.entries(workers)) {
-    if (typeof rawPolicy !== 'object' || rawPolicy === null) {
-      throw new Error(`invalid capability policy for worker ${worker}`);
-    }
-    const policy = rawPolicy as Record<string, unknown>;
-    if (
-      worker.trim() === '' ||
-      !Array.isArray(policy['capabilities']) ||
-      !policy['capabilities'].every(isCapability)
-    ) {
-      throw new Error(`invalid capability policy for worker ${worker}`);
-    }
-    if (policy['priority'] !== undefined && !Number.isFinite(policy['priority'])) {
-      throw new Error(`invalid capability priority for worker ${worker}`);
-    }
-    if (
-      policy['lifecycleRoles'] !== undefined &&
-      !validUniqueArray(policy['lifecycleRoles'], isLifecycleRole)
-    ) {
-      throw new Error(`invalid lifecycle roles for worker ${worker}`);
-    }
-    if (
-      policy['reviewRisks'] !== undefined &&
-      !validUniqueArray(policy['reviewRisks'], isTaskRisk)
-    ) {
-      throw new Error(`invalid review risks for worker ${worker}`);
-    }
-    if (policy['ownership'] !== undefined && !validPaths(policy['ownership'])) {
-      throw new Error(`invalid lifecycle ownership for worker ${worker}`);
-    }
-    if (policy['hotspots'] !== undefined && !validPaths(policy['hotspots'])) {
-      throw new Error(`invalid lifecycle hotspots for worker ${worker}`);
-    }
-    if (Array.isArray(policy['reviewRisks']) && !Array.isArray(policy['lifecycleRoles'])) {
-      throw new Error(`review risks require lifecycle roles for worker ${worker}`);
-    }
-  }
-  return value as CapabilityManifest;
+  return value as unknown as CapabilityManifest;
 }
 
 export function loadCapabilityManifest(
   path = process.env['AGENT_OS_CAPABILITIES_PATH'] ?? DEFAULT_MANIFEST_PATH,
 ): CapabilityManifest {
-  return parseManifest(JSON.parse(readFileSync(path, 'utf8')) as unknown);
+  return parseCapabilityManifest(JSON.parse(readFileSync(path, 'utf8')) as unknown);
 }
 
 export function workerCapabilities(
