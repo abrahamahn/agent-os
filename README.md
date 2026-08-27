@@ -180,6 +180,11 @@ relative to the target repository. Checks may reference a declared host service.
 capabilities, lifecycle roles, ownership, priorities, and review risks. Set
 `AGENT_OS_CAPABILITIES_PATH` to use a target-owned profile.
 
+Capability lists must be unique. Priorities are non-negative safe integers. Ownership and hotspot
+scopes use unique repository-relative POSIX paths; `.` represents the repository root, while
+absolute paths, traversal segments, backslashes, and empty path segments are rejected. Every phase
+is validated when the profile loads, including phases that are not currently active.
+
 ## Command surfaces
 
 | Command                    | Responsibility                                                                                      |

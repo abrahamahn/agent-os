@@ -1,6 +1,6 @@
 {
   "name": "agent-os",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent orchestration, execution, validation, and process-control tooling.",
   "private": true,
   "type": "module",
@@ -31,11 +31,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.53.1",
     "vitest": "^4.1.8"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   },
   "packageManager": "pnpm@10.26.2"
 }
