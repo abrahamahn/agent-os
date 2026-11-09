@@ -23,7 +23,7 @@ import type {
   ReviewSessionEnvironment,
   TaskRecord,
   TestEvidenceClaim,
-} from './orchestrator';
+} from './orchestrator-types';
 
 const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;

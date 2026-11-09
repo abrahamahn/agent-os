@@ -18,7 +18,7 @@ import type {
   ReviewSessionEnvironment,
   TaskContract,
   ValidationResultArtifact,
-} from './orchestrator';
+} from './orchestrator-types';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];

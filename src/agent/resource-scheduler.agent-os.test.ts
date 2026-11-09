@@ -7,11 +7,8 @@ import process from 'node:process';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  candidateContext,
-  EXECUTION_ATTESTATION_PREFIX,
-  ResourceScheduler,
-} from './resource-scheduler';
+import { candidateContext } from './resource-policy';
+import { EXECUTION_ATTESTATION_PREFIX, ResourceScheduler } from './resource-scheduler';
 
 import type { JobRequest, RunRequest } from './resource-scheduler';
 

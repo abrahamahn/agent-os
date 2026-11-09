@@ -2,13 +2,8 @@
 // src/agent/resource-cli.ts
 import process from 'node:process';
 
-import {
-  candidateContext,
-  dispatchPolicy,
-  RESOURCE_LIMITS,
-  ResourceScheduler,
-  resolveWorktree,
-} from './resource-scheduler';
+import { candidateContext, dispatchPolicy, resolveWorktree } from './resource-policy';
+import { RESOURCE_LIMITS, ResourceScheduler } from './resource-scheduler';
 
 import type { AgentId, ResourceClass, ResourceJob } from './resource-scheduler';
 

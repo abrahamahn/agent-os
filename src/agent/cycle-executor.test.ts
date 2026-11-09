@@ -12,7 +12,7 @@ import { buildEvidenceIdentity, ValidationEvidenceStore } from '../validation/va
 import { runCycleExecutor } from './cycle-executor';
 import { AgentOrchestrator } from './orchestrator-o0';
 
-import type { TaskContract } from './orchestrator';
+import type { TaskContract } from './orchestrator-types';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];

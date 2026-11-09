@@ -13,7 +13,8 @@ import { ValidationEvidenceStore } from '../validation/validation-evidence';
 
 import { controllerRoot } from './controller-runtime';
 import { HostValidationRunner } from './host-validation';
-import { AgentOrchestrator as BaseAgentOrchestrator, parseAgentArtifact } from './orchestrator';
+import { AgentOrchestrator as BaseAgentOrchestrator } from './orchestrator';
+import { parseAgentArtifact } from './orchestrator-state';
 
 import type {
   AgentArtifact,
@@ -25,11 +26,7 @@ import type {
   ReconcileResult,
   StoredArtifact,
   TaskRecord,
-} from './orchestrator';
-
-export { parseAgentArtifact, parseTaskContract, reviewTruth } from './orchestrator';
-
-export type * from './orchestrator';
+} from './orchestrator-types';
 
 type StateWriter = {
   withState<T>(operation: (state: OrchestrationState, now: string) => Promise<T> | T): Promise<T>;

@@ -5,12 +5,12 @@ import {
   type ResourceRunResult,
 } from '../agent/resource-scheduler';
 import {
-  buildInventory,
   discoverWorktrees,
   readProcessSnapshot,
   readSharedDev,
   readTmuxPanes,
 } from '../process/guardian';
+import { buildInventory } from '../process/guardian-inventory';
 import {
   ValidationEvidenceStore,
   type EvidenceIdentity,

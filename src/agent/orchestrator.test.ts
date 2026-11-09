@@ -7,7 +7,8 @@ import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { AgentOrchestrator, reviewTruth } from './orchestrator';
+import { AgentOrchestrator } from './orchestrator';
+import { reviewTruth } from './orchestrator-review';
 
 import type {
   AgentArtifact,
@@ -17,7 +18,7 @@ import type {
   ReviewResultArtifact,
   ReviewSessionEnvironment,
   TaskContract,
-} from './orchestrator';
+} from './orchestrator-types';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];

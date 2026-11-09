@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 
-import { candidateContext, resolveWorktree } from '../agent/resource-scheduler';
+import { candidateContext, resolveWorktree } from '../agent/resource-policy';
 import {
   buildEvidenceIdentity,
   fingerprintDependencyFiles,

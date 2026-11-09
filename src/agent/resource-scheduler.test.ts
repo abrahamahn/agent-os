@@ -6,7 +6,8 @@ import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { authorizeCommand, dispatchPolicy, ResourceScheduler } from './resource-scheduler';
+import { authorizeCommand, dispatchPolicy } from './resource-policy';
+import { ResourceScheduler } from './resource-scheduler';
 
 import type { AgentId, JobRequest, ResourceClass, ResourceState } from './resource-scheduler';
 import type { CapabilityManifest } from '../control-plane/capability-manifest';

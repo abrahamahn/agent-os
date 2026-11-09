@@ -2,10 +2,8 @@
 import path from 'node:path';
 
 import {
-  buildInventory,
   discoverWorktrees,
   executeCleanup,
-  planCleanup,
   readProcess,
   readProcessSnapshot,
   readSchedulerTracking,
@@ -14,9 +12,13 @@ import {
   registerSharedDev,
   stateDirectory,
   unregisterSharedDev,
+} from './guardian';
+import {
+  buildInventory,
+  planCleanup,
   type ProcessInventory,
   type SharedDevRegistration,
-} from './guardian';
+} from './guardian-inventory';
 
 function hasFlag(name: string): boolean {
   return process.argv.includes(name);

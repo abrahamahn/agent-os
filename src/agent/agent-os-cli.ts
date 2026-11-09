@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import process from 'node:process';
 
 import { runCycleExecutor } from './cycle-executor';
-import { AgentOrchestrator, parseTaskContract } from './orchestrator-o0';
+import { AgentOrchestrator } from './orchestrator-o0';
+import { parseTaskContract } from './orchestrator-state';
 
 function usage(): never {
   process.stderr.write(`Usage:

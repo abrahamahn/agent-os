@@ -4,16 +4,13 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { executeCleanup, readSharedDev, registerSharedDev, unregisterSharedDev } from './guardian';
 import {
   buildInventory,
-  executeCleanup,
   planCleanup,
-  readSharedDev,
-  registerSharedDev,
-  unregisterSharedDev,
   type ProcessRecord,
   type SharedDevRegistration,
-} from './guardian';
+} from './guardian-inventory';
 
 const ROOT = '/workspace/target';
 const temporaryDirectories: string[] = [];

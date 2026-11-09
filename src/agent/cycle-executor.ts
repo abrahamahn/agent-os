@@ -19,14 +19,15 @@ import {
 
 import { runCommandExecutor } from './command-executor';
 import { AgentOrchestrator } from './orchestrator-o0';
-import { dependencyEnvironmentKey, ResourceScheduler } from './resource-scheduler';
+import { dependencyEnvironmentKey } from './resource-policy';
+import { ResourceScheduler } from './resource-scheduler';
 
 import type {
   AgentCommand,
   TaskRecord,
   ValidationRequirement,
   ValidationResultArtifact,
-} from './orchestrator';
+} from './orchestrator-types';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;

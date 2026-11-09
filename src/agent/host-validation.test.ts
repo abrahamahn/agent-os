@@ -7,25 +7,25 @@ import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { HostValidationRunner } from './host-validation';
 import {
   dependencyBootstrapCommand,
   dependencyBootstrapEnvironment,
   dependencyPreparationIdentity,
   discoverTurboScratchRoots,
-  HostValidationRunner,
-  PRODUCT_VALIDATION_CACHE_POLICY,
   productExecutionEnvironment,
   productExecutionIdentity,
-  productValidationScratchPolicy,
   productTurboScratchPolicy,
+  productValidationScratchPolicy,
   sandboxedHostCommand,
-} from './host-validation';
+} from './host-validation-policy';
+import { PRODUCT_VALIDATION_CACHE_POLICY } from './host-validation-types';
 
 import type {
   HostValidationCheckId,
   HostValidationPolicy,
   HostValidationRequest,
-} from './host-validation';
+} from './host-validation-types';
 import type { RunRequest } from './resource-scheduler';
 import type { WorkerEnvironmentCapabilities } from './worker-workspace';
 

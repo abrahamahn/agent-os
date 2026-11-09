@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runCommandExecutor } from './command-executor';
 import { AgentOrchestrator } from './orchestrator-o0';
 
-import type { TaskContract } from './orchestrator';
+import type { TaskContract } from './orchestrator-types';
 
 const execFileAsync = promisify(execFile);
 const temporaryDirectories: string[] = [];
